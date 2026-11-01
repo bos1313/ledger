@@ -6,7 +6,8 @@ A small multi-currency bank account: EUR, USD and BAM accounts, transfers with F
 
 Built to show how money should be handled in a web app, not just moved around.
 
-> Runs locally in a few minutes, see [Run locally](#run-locally). Login `demo@ledger.local` / `demo1234`.
+> **Live demo:** https://ledger-ten-sand.vercel.app · login `demo@ledger.local` / `demo1234` (shared demo account; balances change as visitors make transfers).
+> Or run it locally in a few minutes, see [Run locally](#run-locally).
 
 ## What this demonstrates
 
