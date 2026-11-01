@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db, Tx } from "@/db";
 import { accounts, ledgerEntries, transfers, type Account, type Transfer } from "@/db/schema";
 import { type Currency, convertMinor, isCurrency } from "@/lib/money";
@@ -237,32 +237,113 @@ export async function listAccountsWithBalances(db: Db, userId: string) {
   return rows.map((r) => ({ ...r, currency: r.currency as Currency, balanceMinor: BigInt(r.balance) }));
 }
 
+export const APP_TIME_ZONE = "Europe/Zagreb";
+
+export async function getAccountForUser(db: Db, userId: string, accountId: string) {
+  const [row] = await db
+    .select()
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)));
+  return row ?? null;
+}
+
+export type EntryFilters = {
+  /** Inclusive local dates (YYYY-MM-DD) in APP_TIME_ZONE. */
+  from?: string;
+  to?: string;
+  kind?: "transfer" | "deposit";
+};
+
+export type EntryRow = {
+  id: bigint;
+  amountMinor: bigint;
+  /** Account balance right after this entry (running total over the whole account history). */
+  balanceAfterMinor: bigint;
+  currency: Currency;
+  createdAt: Date;
+  transferId: string;
+  kind: "transfer" | "deposit";
+  description: string | null;
+  rate: string;
+  transferAmountMinor: bigint;
+  convertedMinor: bigint;
+  fromAccountName: string | null;
+  fromCurrency: Currency | null;
+  toAccountName: string;
+  toCurrency: Currency;
+};
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Entries of one account, newest first, with a running balance.
+ * The running balance is computed over the account's FULL history (window function)
+ * before filters are applied, so it stays correct on every page and date range.
+ */
 export async function listEntries(
   db: Db,
-  input: { userId: string; accountId: string; page?: number; pageSize?: number; from?: Date; to?: Date },
-) {
+  input: { userId: string; accountId: string; page?: number; pageSize?: number; all?: boolean } & EntryFilters,
+): Promise<{ rows: EntryRow[]; total: number } | null> {
+  const account = await getAccountForUser(db, input.userId, input.accountId);
+  if (!account) return null;
+
   const pageSize = Math.min(Math.max(input.pageSize ?? 20, 1), 100);
   const page = Math.max(input.page ?? 1, 1);
-  const conditions = [eq(ledgerEntries.accountId, input.accountId), eq(accounts.userId, input.userId)];
-  if (input.from) conditions.push(gte(ledgerEntries.createdAt, input.from));
-  if (input.to) conditions.push(lt(ledgerEntries.createdAt, input.to));
+  const localDate = sql`(e.created_at at time zone ${APP_TIME_ZONE})::date`;
+  const filters = [sql`true`];
+  if (input.from && DATE_RE.test(input.from)) filters.push(sql`${localDate} >= ${input.from}::date`);
+  if (input.to && DATE_RE.test(input.to)) filters.push(sql`${localDate} <= ${input.to}::date`);
+  if (input.kind) filters.push(sql`t.kind = ${input.kind}`);
+  const where = sql.join(filters, sql` and `);
 
-  return db
-    .select({
-      id: ledgerEntries.id,
-      amountMinor: ledgerEntries.amountMinor,
-      currency: ledgerEntries.currency,
-      createdAt: ledgerEntries.createdAt,
-      transferId: transfers.id,
-      kind: transfers.kind,
-      description: transfers.description,
-      rate: transfers.rate,
-    })
-    .from(ledgerEntries)
-    .innerJoin(accounts, eq(accounts.id, ledgerEntries.accountId))
-    .innerJoin(transfers, eq(transfers.id, ledgerEntries.transferId))
-    .where(and(...conditions))
-    .orderBy(desc(ledgerEntries.createdAt), desc(ledgerEntries.id))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+  const base = sql`
+    with e as (
+      select le.id, le.amount_minor, le.currency, le.created_at, le.transfer_id,
+             sum(le.amount_minor) over (order by le.created_at, le.id) as balance_after
+      from ledger_entries le
+      where le.account_id = ${account.id}
+    )`;
+
+  const [{ total }] = await db.execute<{ total: string }>(sql`
+    ${base}
+    select count(*)::text as total
+    from e join transfers t on t.id = e.transfer_id
+    where ${where}`);
+
+  const limit = input.all ? sql`limit 10000` : sql`limit ${pageSize} offset ${(page - 1) * pageSize}`;
+  const rows = await db.execute<Record<string, string | Date | null>>(sql`
+    ${base}
+    select e.id::text, e.amount_minor::text, e.balance_after::text, e.currency, e.created_at,
+           t.id as transfer_id, t.kind, t.description, t.rate::text,
+           t.amount_minor::text as transfer_amount, t.converted_minor::text,
+           fa.name as from_name, fa.currency as from_currency,
+           ta.name as to_name, ta.currency as to_currency
+    from e
+    join transfers t on t.id = e.transfer_id
+    left join accounts fa on fa.id = t.from_account_id
+    join accounts ta on ta.id = t.to_account_id
+    where ${where}
+    order by e.created_at desc, e.id desc
+    ${limit}`);
+
+  return {
+    total: Number(total),
+    rows: rows.map((r) => ({
+      id: BigInt(r.id as string),
+      amountMinor: BigInt(r.amount_minor as string),
+      balanceAfterMinor: BigInt(r.balance_after as string),
+      currency: r.currency as Currency,
+      createdAt: new Date(r.created_at as Date),
+      transferId: r.transfer_id as string,
+      kind: r.kind as EntryRow["kind"],
+      description: r.description as string | null,
+      rate: r.rate as string,
+      transferAmountMinor: BigInt(r.transfer_amount as string),
+      convertedMinor: BigInt(r.converted_minor as string),
+      fromAccountName: r.from_name as string | null,
+      fromCurrency: r.from_currency as Currency | null,
+      toAccountName: r.to_name as string,
+      toCurrency: r.to_currency as Currency,
+    })),
+  };
 }

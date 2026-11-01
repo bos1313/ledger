@@ -32,3 +32,24 @@ input, select { font: inherit; padding: 10px 12px; border: 1px solid var(--borde
 button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
 button:disabled { opacity: 0.6; }
 button.link { background: none; color: var(--accent); padding: 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.small { font-size: 0.85rem; }
+.nowrap { white-space: nowrap; }
+.back { align-self: flex-start; }
+.account-card { color: inherit; display: flex; flex-direction: column; gap: 4px; transition: border-color 0.15s; }
+.account-card:hover { border-color: var(--accent); text-decoration: none; }
+.button { display: inline-block; padding: 10px 16px; border-radius: 8px; background: var(--accent); color: #fff; }
+.button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--border); }
+.button:hover { text-decoration: none; border-color: var(--accent); }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.filters label { flex: 1 1 160px; }
+.table-card { padding: 0; overflow-x: auto; }
+.empty { padding: 24px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { text-align: left; padding: 12px 20px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 0.85rem; }
+tbody tr:last-child td { border-bottom: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.positive { color: var(--success); }
+.pagination .row { gap: 16px; }

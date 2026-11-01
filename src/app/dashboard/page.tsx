@@ -1,3 +1,5 @@
+import type { Route } from "next";
+import Link from "next/link";
 import { db } from "@/db";
 import { formatMoney } from "@/lib/money";
 import { requireSession } from "@/server/auth";
@@ -23,10 +25,11 @@ export default async function DashboardPage() {
 
       <section className="grid">
         {accounts.map((a) => (
-          <article key={a.id} className="card">
+          <Link key={a.id} href={`/dashboard/accounts/${a.id}` as Route} className="card account-card">
             <p className="muted">{a.name}</p>
             <p className="balance">{formatMoney(a.balanceMinor, a.currency)}</p>
-          </article>
+            <p className="muted small">Transakcije →</p>
+          </Link>
         ))}
       </section>
 

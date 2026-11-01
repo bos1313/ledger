@@ -1,4 +1,3 @@
-import tsconfigPaths from "vite-tsconfig-paths";
 import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
@@ -7,7 +6,7 @@ import { defineConfig } from "vitest/config";
 const testDbUrl = process.env.TEST_DATABASE_URL ?? loadEnv("test", process.cwd(), "").TEST_DATABASE_URL;
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  resolve: { tsconfigPaths: true }, // "@/..." imports, same as Next.js
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],

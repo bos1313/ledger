@@ -1,5 +1,7 @@
 # Ledger
 
+[![CI](https://github.com/bos1313/ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/bos1313/ledger/actions/workflows/ci.yml)
+
 A small multi-currency bank account: EUR, USD and BAM accounts, transfers with FX conversion at the daily ECB rate, a double-entry ledger, and (coming next) Stripe test-mode deposits with live balance updates.
 
 Built to show how money should be handled in a web app, not just moved around.
@@ -18,7 +20,8 @@ Built to show how money should be handled in a web app, not just moved around.
 - **BAM is pegged** to the euro (1 EUR = 1.95583 BAM by the currency board) and isn't published by the ECB, so it is derived, not fetched.
 
 **Next.js App Router**
-- Server Components read straight from the database (`/dashboard`).
+- Server Components read straight from the database (`/dashboard`, `/dashboard/accounts/[id]`).
+- Running balance per entry via a SQL window function (`SUM() OVER (ORDER BY …)`), computed over the full history so it stays correct on every page and filter.
 - Server Actions for login and transfers, with the idempotency key generated per form render.
 - Route Handlers as a versioned REST API (`/api/v1/*`).
 - `proxy.ts` (Next.js 16's new name for `middleware.ts`) as the auth gate; every data access re-checks the session too.
@@ -99,7 +102,7 @@ All endpoints need the session cookie (log in via `/login`). Errors look like `{
 | Method | Path | Notes |
 |--------|------|-------|
 | GET  | `/api/v1/accounts` | Accounts with balances |
-| GET  | `/api/v1/transactions?accountId=…&page=1&pageSize=20&from=…&to=…` | Add `&format=csv` for export |
+| GET  | `/api/v1/transactions?accountId=…&page=1&pageSize=20&from=…&to=…&kind=…` | Dates inclusive (`YYYY-MM-DD`, Europe/Zagreb); each row has `balance_after_minor`. Add `&format=csv` to export all matching rows |
 | POST | `/api/v1/transfers` | Header `Idempotency-Key`; body `{from_account_id, to_account_id, amount_minor, description?}` |
 | GET  | `/api/v1/rates?from=EUR&to=USD` | ECB rate via Frankfurter, cached 1h |
 | GET  | `/api/health` | Public; checks DB |
@@ -115,7 +118,7 @@ curl -X POST http://localhost:3000/api/v1/transfers \
 
 - [x] Schema, double-entry ledger, auth, Docker Compose
 - [x] Transfers with FX conversion and idempotency, REST API, CSV export
-- [ ] Transactions page with filters and pagination
+- [x] Transactions page: date/type filters, pagination, running balance, CSV export
 - [ ] Rate history chart (Frankfurter time series), optional Redis cache
 - [ ] Stripe test-mode deposits: Checkout/PaymentIntent, webhook with signature verification
 - [ ] Live balance updates over SSE when a deposit lands

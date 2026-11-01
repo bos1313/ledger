@@ -10,7 +10,14 @@ import postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { CURRENCIES } from "@/lib/money";
-import { LedgerError, listAccountsWithBalances, postDeposit, postTransfer, type RateProvider } from "@/server/ledger";
+import {
+  LedgerError,
+  listAccountsWithBalances,
+  listEntries,
+  postDeposit,
+  postTransfer,
+  type RateProvider,
+} from "@/server/ledger";
 
 const url = process.env.DATABASE_URL || undefined;
 const client = url ? postgres(url, { max: 10, onnotice: () => {} }) : null;
@@ -130,5 +137,26 @@ describe.skipIf(!url)("ledger", () => {
     await expect(
       postTransfer(db, fixedRates, { userId, idempotencyKey: randomUUID(), fromAccountId: eur, toAccountId: foreign.id, amountMinor: 100n }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("lists entries newest first with a correct running balance on every page", async () => {
+    for (const amount of [1000n, 2000n, 3000n]) {
+      await postTransfer(db, fixedRates, { userId, idempotencyKey: randomUUID(), fromAccountId: eur, toAccountId: usd, amountMinor: amount });
+    }
+    // EUR history: +10000, -1000, -2000, -3000  -> balances 10000, 9000, 7000, 4000
+    const page1 = await listEntries(db, { userId, accountId: eur, page: 1, pageSize: 2 });
+    const page2 = await listEntries(db, { userId, accountId: eur, page: 2, pageSize: 2 });
+    expect(page1!.total).toBe(4);
+    expect(page1!.rows.map((r) => [r.amountMinor, r.balanceAfterMinor])).toEqual([[-3000n, 4000n], [-2000n, 7000n]]);
+    expect(page2!.rows.map((r) => [r.amountMinor, r.balanceAfterMinor])).toEqual([[-1000n, 9000n], [10000n, 10000n]]);
+    expect(page1!.rows[0].toAccountName).toBe("USD");
+
+    const deposits = await listEntries(db, { userId, accountId: eur, kind: "deposit" });
+    expect(deposits!.total).toBe(1);
+    expect(deposits!.rows[0].balanceAfterMinor).toBe(10000n); // running balance ignores the filter
+
+    const future = await listEntries(db, { userId, accountId: eur, from: "2999-01-01" });
+    expect(future!.total).toBe(0);
+    expect(await listEntries(db, { userId: randomUUID(), accountId: eur })).toBeNull(); // not your account
   });
 });
