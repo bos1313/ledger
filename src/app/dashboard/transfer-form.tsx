@@ -9,8 +9,12 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
   const [state, action, pending] = useActionState<TransferState, FormData>(transferAction, {});
   // New key after every successful transfer; the same key is reused if the user retries a failed submit.
   const [key, setKey] = useState(() => crypto.randomUUID());
+  const [amount, setAmount] = useState("");
   useEffect(() => {
-    if (state.ok) setKey(crypto.randomUUID());
+    if (state.ok) {
+      setKey(crypto.randomUUID());
+      setAmount("");
+    }
   }, [state]);
 
   return (
@@ -37,7 +41,15 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
       </div>
       <label>
         Iznos (u valuti izvornog računa)
-        <input name="amount" inputMode="decimal" placeholder="100.00" pattern="\d+(\.\d{1,2})?" required />
+        <input
+          name="amount"
+          inputMode="decimal"
+          placeholder="100.00"
+          pattern="\d+(\.\d{1,2})?"
+          required
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
       </label>
       <label>
         Opis
@@ -45,7 +57,7 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
       </label>
       {state.error && <p className="error">{state.error}</p>}
       {state.ok && <p className="success">Prijenos proknjižen.</p>}
-      <button disabled={pending}>{pending ? "Knjiženje…" : "Prenesi"}</button>
+      <button disabled={pending || amount.trim() === ""}>{pending ? "Knjiženje…" : "Prenesi"}</button>
     </form>
   );
 }
