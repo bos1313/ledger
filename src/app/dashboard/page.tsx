@@ -1,17 +1,27 @@
 import type { Route } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { db } from "@/db";
 import { formatMoney } from "@/lib/money";
 import { requireSession } from "@/server/auth";
 import { listAccountsWithBalances } from "@/server/ledger";
 import { logout } from "../login/actions";
+import { CHART_PAIRS, type ChartPair } from "@/lib/fx";
+import { PAIR_OPTIONS, RANGES, RatesSection } from "./rates-section";
 import { TransferForm } from "./transfer-form";
 
 export const dynamic = "force-dynamic";
 
 /** Server Component: reads straight from the DB, no API round-trip. */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pair?: string; range?: string }>;
+}) {
   const session = await requireSession();
+  const sp = await searchParams;
+  const pair: ChartPair = (CHART_PAIRS as readonly string[]).includes(sp.pair ?? "") ? (sp.pair as ChartPair) : PAIR_OPTIONS[0];
+  const days = RANGES.find((r) => String(r.days) === sp.range)?.days ?? 90;
   const accounts = await listAccountsWithBalances(db, session.userId);
 
   return (
@@ -34,6 +44,10 @@ export default async function DashboardPage() {
       </section>
 
       <TransferForm accounts={accounts.map(({ id, name, currency }) => ({ id, name, currency }))} />
+
+      <Suspense key={`${pair}-${days}`} fallback={<section className="card muted">Učitavanje tečajne liste…</section>}>
+        <RatesSection pair={pair} days={days} />
+      </Suspense>
     </main>
   );
 }

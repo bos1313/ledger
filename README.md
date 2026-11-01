@@ -17,11 +17,12 @@ Built to show how money should be handled in a web app, not just moved around.
 - **Idempotency keys.** `POST /api/v1/transfers` requires an `Idempotency-Key` header. A retry returns the original result (`200`, `Idempotent-Replayed: true`); reusing a key with a different body returns `409`. Stripe deposits use the PaymentIntent id the same way, so a webhook delivered twice books once.
 - **Concurrency safety.** Both accounts are locked (`SELECT … FOR NO KEY UPDATE`, in id order) before the balance check, so parallel requests can't overdraw. Tested with 5 concurrent transfers against a real Postgres.
 - **Banker's rounding** (half-to-even) when converting, with fixed-point rates (10 decimals) in integer math.
-- **BAM is pegged** to the euro (1 EUR = 1.95583 BAM by the currency board) and isn't published by the ECB, so it is derived, not fetched.
+- **BAM is pegged** to the euro (1 EUR = 1.95583 BAM by the currency board) and isn't published by the ECB, so it is derived, not fetched. Only EUR→USD comes from the API; every other pair (and its history) is a cross rate computed in fixed-point.
 
 **Next.js App Router**
 - Server Components read straight from the database (`/dashboard`, `/dashboard/accounts/[id]`).
 - Running balance per entry via a SQL window function (`SUM() OVER (ORDER BY …)`), computed over the full history so it stays correct on every page and filter.
+- Streaming with `<Suspense>`: balances render immediately, the FX card streams in; if the FX API is down only that card degrades.
 - Server Actions for login and transfers, with the idempotency key generated per form render.
 - Route Handlers as a versioned REST API (`/api/v1/*`).
 - `proxy.ts` (Next.js 16's new name for `middleware.ts`) as the auth gate; every data access re-checks the session too.
@@ -105,6 +106,7 @@ All endpoints need the session cookie (log in via `/login`). Errors look like `{
 | GET  | `/api/v1/transactions?accountId=…&page=1&pageSize=20&from=…&to=…&kind=…` | Dates inclusive (`YYYY-MM-DD`, Europe/Zagreb); each row has `balance_after_minor`. Add `&format=csv` to export all matching rows |
 | POST | `/api/v1/transfers` | Header `Idempotency-Key`; body `{from_account_id, to_account_id, amount_minor, description?}` |
 | GET  | `/api/v1/rates?from=EUR&to=USD` | ECB rate via Frankfurter, cached 1h |
+| GET  | `/api/v1/rates/history?from=EUR&to=USD&days=90` | One point per ECB working day (7–730 days), cached 6h |
 | GET  | `/api/health` | Public; checks DB |
 
 ```bash
@@ -119,7 +121,7 @@ curl -X POST http://localhost:3000/api/v1/transfers \
 - [x] Schema, double-entry ledger, auth, Docker Compose
 - [x] Transfers with FX conversion and idempotency, REST API, CSV export
 - [x] Transactions page: date/type filters, pagination, running balance, CSV export
-- [ ] Rate history chart (Frankfurter time series), optional Redis cache
+- [x] Rate board and rate history chart (Frankfurter time series, cached in the Next.js data cache)
 - [ ] Stripe test-mode deposits: Checkout/PaymentIntent, webhook with signature verification
 - [ ] Live balance updates over SSE when a deposit lands
 

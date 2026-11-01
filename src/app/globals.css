@@ -53,3 +53,31 @@ tbody tr:last-child td { border-bottom: 0; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .positive { color: var(--success); }
 .pagination .row { gap: 16px; }
+:root { --series-1: #2a78d6; --grid: #ececea; }
+.negative { color: var(--error); }
+.rates-grid { display: grid; grid-template-columns: minmax(240px, 1fr) 2.4fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .rates-grid { grid-template-columns: 1fr; } }
+.rates-grid h2 { font-size: 1.15rem; }
+.board { margin-top: 8px; }
+.board td { padding: 10px 0; }
+.board td + td { padding-left: 12px; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 0.85rem; }
+.segmented a { padding: 6px 10px; color: var(--muted); }
+.segmented a + a { border-left: 1px solid var(--border); }
+.segmented a[aria-current] { background: var(--accent); color: #fff; }
+.segmented a:hover { text-decoration: none; }
+.chart-plot { position: relative; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+.chart svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chart .line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .area { fill: var(--series-1); opacity: 0.1; }
+.chart .dot { fill: var(--series-1); stroke: var(--card); stroke-width: 2; }
+.chart .crosshair { stroke: var(--muted); stroke-width: 1; }
+.chart .end-label { fill: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-tip { position: absolute; top: 0; transform: translateX(-50%); background: var(--text); color: #fff; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; display: flex; flex-direction: column; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chart-table { margin-top: 8px; font-size: 0.85rem; }
+.chart-table summary { cursor: pointer; color: var(--accent); }
+.chart-table table { margin-top: 8px; max-height: 240px; display: block; overflow-y: auto; }
+.chart-table th, .chart-table td { padding: 6px 12px; }
