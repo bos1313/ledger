@@ -71,3 +71,14 @@ export function roundRate(rate: string, decimals: number): string {
   const drop = 10n ** BigInt(RATE_SCALE - decimals);
   return scaledToRate(divRoundHalfEven(rateToScaled(rate), drop) * drop);
 }
+
+/** Display a rate in the UI locale with fixed decimals ("1,7450" / "1.7450"). Display only. */
+export function formatRate(rate: string | number, intl: string, decimals = 4): string {
+  const n = typeof rate === "number" ? rate : Number(roundRate(rate, decimals));
+  return n.toLocaleString(intl, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/** "2026-10-30" -> "30. 10. 2026." (hr) / "30/10/2026" (en-GB). Calendar date, no time zone shift. */
+export function formatIsoDate(iso: string, intl: string, opts: Intl.DateTimeFormatOptions = { dateStyle: "short" }): string {
+  return new Intl.DateTimeFormat(intl, { ...opts, timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+}

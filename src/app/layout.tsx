@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
+import { LanguageSwitcher } from "@/i18n/language-switcher";
+import { getI18n } from "@/i18n/server";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Ledger",
-  description: "Multi-currency ledger demo: double-entry bookkeeping, FX and payments",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: "Ledger", description: t.meta.description };
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { locale, t } = await getI18n();
   return (
-    <html lang="hr">
-      <body>{children}</body>
+    <html lang={locale}>
+      <body>
+        <div className="topbar">
+          <LanguageSwitcher locale={locale} label={t.common.language} />
+        </div>
+        {children}
+      </body>
     </html>
   );
 }

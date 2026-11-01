@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { type Dictionary, fmt } from "@/i18n/dictionaries";
+import { formatIsoDate, formatRate } from "@/lib/fx";
 
 type Point = { date: string; rate: string };
 
@@ -10,22 +12,27 @@ const M = { top: 16, right: 64, bottom: 28, left: 56 };
 const PLOT_W = W - M.left - M.right;
 const PLOT_H = H - M.top - M.bottom;
 
-const fmtRate = (n: number) => n.toLocaleString("hr-HR", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-const fmtDay = (iso: string) => {
-  const [y, m, d] = iso.split("-");
-  return `${d}. ${m}. ${y}.`;
-};
-const fmtShort = (iso: string, withYear: boolean) => {
-  const [y, m, d] = iso.split("-");
-  return withYear ? `${d}. ${m}. ${y}.` : `${d}. ${m}.`;
-};
 
 /**
  * Line chart of one rate over time, plain SVG (no chart library).
  * Rates arrive as exact decimal strings; converting to Number here is fine because it is
  * only used to place pixels, never to calculate money.
  */
-export function RateChart({ points, label }: { points: Point[]; label: string }) {
+export function RateChart({
+  points,
+  label,
+  intl,
+  t,
+}: {
+  points: Point[];
+  label: string;
+  intl: string;
+  t: Dictionary["chart"];
+}) {
+  const fmtRate = (n: number) => formatRate(n, intl);
+  const fmtDay = (iso: string) => formatIsoDate(iso, intl);
+  const fmtShort = (iso: string, withYear: boolean) =>
+    withYear ? formatIsoDate(iso, intl) : formatIsoDate(iso, intl, { day: "2-digit", month: "2-digit" });
   const svgRef = useRef<SVGSVGElement>(null);
   const [active, setActive] = useState<number | null>(null);
 
@@ -45,7 +52,7 @@ export function RateChart({ points, label }: { points: Point[]; label: string })
     return { values, x, y, line, area, yTicks, xTicks };
   }, [points]);
 
-  if (points.length === 0) return <p className="muted">Nema podataka za odabrano razdoblje.</p>;
+  if (points.length === 0) return <p className="muted">{t.noData}</p>;
 
   const last = points.length - 1;
   const shown = active ?? last;
@@ -75,7 +82,12 @@ export function RateChart({ points, label }: { points: Point[]; label: string })
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           role="img"
-          aria-label={`${label}: od ${fmtDay(points[0].date)} do ${fmtDay(points[last].date)}, zadnji tečaj ${fmtRate(geo.values[last])}`}
+          aria-label={fmt(t.ariaSummary, {
+            label,
+            start: fmtDay(points[0].date),
+            end: fmtDay(points[last].date),
+            last: fmtRate(geo.values[last]),
+          })}
           tabIndex={0}
           onKeyDown={onKeyDown}
           onBlur={() => setActive(null)}
@@ -139,11 +151,11 @@ export function RateChart({ points, label }: { points: Point[]; label: string })
       </div>
 
       <details className="chart-table">
-        <summary>Prikaži kao tablicu</summary>
+        <summary>{t.showTable}</summary>
         <table>
           <thead>
             <tr>
-              <th>Datum</th>
+              <th>{t.date}</th>
               <th className="num">{label}</th>
             </tr>
           </thead>

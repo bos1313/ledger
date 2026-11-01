@@ -1,28 +1,24 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { type ChartPair, roundRate, splitPair } from "@/lib/fx";
+import { fmt } from "@/i18n/dictionaries";
+import { getI18n } from "@/i18n/server";
+import { type ChartPair, formatIsoDate, formatRate, splitPair } from "@/lib/fx";
 import { FxUnavailableError, getRateBoard, getRateHistory } from "@/lib/rates";
 import { RateChart } from "./rate-chart";
 
 export const RANGES = [
-  { days: 30, label: "1 mj." },
-  { days: 90, label: "3 mj." },
-  { days: 365, label: "1 god." },
+  { days: 30, key: "range30" },
+  { days: 90, key: "range90" },
+  { days: 365, key: "range365" },
 ] as const;
 export const PAIR_OPTIONS: ChartPair[] = ["EURUSD", "USDBAM"];
-
-/** "1.745" -> "1,7450": always 4 decimals, Croatian decimal comma. */
-const hr = (rate: string) => {
-  const [int, frac = ""] = roundRate(rate, 4).split(".");
-  return `${int},${frac.padEnd(4, "0")}`;
-};
-const fmtDay = (iso: string) => iso.split("-").reverse().join(". ") + ".";
 
 /**
  * Async Server Component, rendered inside <Suspense>: balances show immediately and this
  * streams in when the (cached) FX data is ready. If the FX API is down, only this card degrades.
  */
 export async function RatesSection({ pair, days }: { pair: ChartPair; days: number }) {
+  const { t, intl } = await getI18n();
   const [from, to] = splitPair(pair);
   let board: Awaited<ReturnType<typeof getRateBoard>>;
   let history: Awaited<ReturnType<typeof getRateHistory>>;
@@ -32,19 +28,22 @@ export async function RatesSection({ pair, days }: { pair: ChartPair; days: numb
     if (!(e instanceof FxUnavailableError)) throw e;
     return (
       <section className="card">
-        <h2>Tečajna lista</h2>
-        <p className="muted">Tečajna lista trenutno nije dostupna. Prijenosi EUR ↔ BAM rade i dalje (fiksni tečaj).</p>
+        <h2>{t.rates.title}</h2>
+        <p className="muted">{t.rates.unavailable}</p>
       </section>
     );
   }
 
   const href = (p: ChartPair, d: number) => `/dashboard?pair=${p}&range=${d}` as Route;
+  // "0,14 %" in Croatian, "0.14%" in English (display only).
+  const pct = (v: string) =>
+    (Number(v.replace("-", "")) / 100).toLocaleString(intl, { style: "percent", minimumFractionDigits: 2 });
 
   return (
     <section className="rates-grid">
       <article className="card">
-        <h2>Tečajna lista</h2>
-        <p className="muted small">ECB, {fmtDay(board.date)} · 1 jedinica prve valute u drugoj</p>
+        <h2>{t.rates.title}</h2>
+        <p className="muted small">{fmt(t.rates.source, { date: formatIsoDate(board.date, intl) })}</p>
         <table className="board">
           <tbody>
             {board.rows.map((r) => (
@@ -53,15 +52,15 @@ export async function RatesSection({ pair, days }: { pair: ChartPair; days: numb
                   {r.from}/{r.to}
                 </td>
                 <td className="num nowrap">
-                  <strong>{hr(r.rate)}</strong>
+                  <strong>{formatRate(r.rate, intl)}</strong>
                 </td>
                 <td className="num nowrap small">
                   {r.pegged ? (
-                    <span className="muted">fiksni</span>
+                    <span className="muted">{t.rates.pegged}</span>
                   ) : r.changePct!.startsWith("-") ? (
-                    <span className="negative">▼ {r.changePct!.slice(1).replace(".", ",")} %</span>
+                    <span className="negative">▼ {pct(r.changePct!)}</span>
                   ) : (
-                    <span className="positive">▲ {r.changePct!.replace(".", ",")} %</span>
+                    <span className="positive">▲ {pct(r.changePct!)}</span>
                   )}
                 </td>
               </tr>
@@ -76,23 +75,23 @@ export async function RatesSection({ pair, days }: { pair: ChartPair; days: numb
             {from}/{to}
           </h2>
           <div className="row">
-            <nav className="segmented" aria-label="Valutni par">
+            <nav className="segmented" aria-label={t.rates.pairNav}>
               {PAIR_OPTIONS.map((p) => (
                 <Link key={p} href={href(p, days)} aria-current={p === pair ? "true" : undefined} scroll={false}>
                   {p.slice(0, 3)}/{p.slice(3)}
                 </Link>
               ))}
             </nav>
-            <nav className="segmented" aria-label="Razdoblje">
+            <nav className="segmented" aria-label={t.rates.rangeNav}>
               {RANGES.map((r) => (
                 <Link key={r.days} href={href(pair, r.days)} aria-current={r.days === days ? "true" : undefined} scroll={false}>
-                  {r.label}
+                  {t.rates[r.key]}
                 </Link>
               ))}
             </nav>
           </div>
         </div>
-        <RateChart points={history} label={`1 ${from} u ${to}`} />
+        <RateChart points={history} label={fmt(t.chart.seriesLabel, { from, to })} intl={intl} t={t.chart} />
       </article>
     </section>
   );

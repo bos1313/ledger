@@ -23,6 +23,7 @@ Built to show how money should be handled in a web app, not just moved around.
 - Server Components read straight from the database (`/dashboard`, `/dashboard/accounts/[id]`).
 - Running balance per entry via a SQL window function (`SUM() OVER (ORDER BY …)`), computed over the full history so it stays correct on every page and filter.
 - Streaming with `<Suspense>`: balances render immediately, the FX card streams in; if the FX API is down only that card degrades.
+- **Croatian and English UI.** Typed dictionaries (a test checks both languages have the same keys and placeholders); language from a cookie, else the browser's `Accept-Language`; switched by a Server Action. Money, dates and rates use `Intl` for the chosen locale (`1.234,56 €` / `€1,234.56`).
 - Server Actions for login and transfers, with the idempotency key generated per form render.
 - Route Handlers as a versioned REST API (`/api/v1/*`).
 - `proxy.ts` (Next.js 16's new name for `middleware.ts`) as the auth gate; every data access re-checks the session too.
@@ -69,7 +70,7 @@ EUR sums to 0, USD sums to 0. Same-currency transfers need only two entries. A S
 
 **Option A: without Docker** (recommended for trying it out)
 
-Requirements: [Node.js](https://nodejs.org) 22.9+ and [PostgreSQL](https://www.postgresql.org/download/) 16 or newer running locally.
+Requirements: [Node.js](https://nodejs.org) 22.9+ and [PostgreSQL](https://www.postgresql.org/download/) 18 or newer running locally.
 
 ```bash
 git clone https://github.com/bos1313/ledger.git

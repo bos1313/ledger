@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import type { Dictionary } from "@/i18n/dictionaries";
 import { transferAction, type TransferState } from "./actions";
 
 type AccountOption = { id: string; name: string; currency: string };
 
-export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
+export function TransferForm({ accounts, t }: { accounts: AccountOption[]; t: Dictionary["transfer"] }) {
   const [state, action, pending] = useActionState<TransferState, FormData>(transferAction, {});
   // New key after every successful transfer; the same key is reused if the user retries a failed submit.
   const [key, setKey] = useState(() => crypto.randomUUID());
@@ -19,11 +20,11 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
 
   return (
     <form action={action} className="card stack">
-      <h2>Prijenos</h2>
+      <h2>{t.title}</h2>
       <input type="hidden" name="idempotencyKey" value={key} />
       <div className="row">
         <label>
-          S računa
+          {t.from}
           <select name="fromAccountId" defaultValue={accounts[0]?.id}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
@@ -31,7 +32,7 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
           </select>
         </label>
         <label>
-          Na račun
+          {t.to}
           <select name="toAccountId" defaultValue={accounts[1]?.id}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
@@ -40,7 +41,7 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
         </label>
       </div>
       <label>
-        Iznos (u valuti izvornog računa)
+        {t.amount}
         <input
           name="amount"
           inputMode="decimal"
@@ -52,12 +53,12 @@ export function TransferForm({ accounts }: { accounts: AccountOption[] }) {
         />
       </label>
       <label>
-        Opis
+        {t.description}
         <input name="description" maxLength={140} />
       </label>
-      {state.error && <p className="error">{state.error}</p>}
-      {state.ok && <p className="success">Prijenos proknjižen.</p>}
-      <button disabled={pending || amount.trim() === ""}>{pending ? "Knjiženje…" : "Prenesi"}</button>
+      {state.error && <p className="error">{t.errors[state.error]}</p>}
+      {state.ok && <p className="success">{t.success}</p>}
+      <button disabled={pending || amount.trim() === ""}>{pending ? t.submitting : t.submit}</button>
     </form>
   );
 }
