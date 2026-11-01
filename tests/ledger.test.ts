@@ -1,6 +1,6 @@
 /**
  * Integration tests against a real Postgres (row locks and unique indexes can't be mocked honestly).
- * Requires DATABASE_URL pointing at a throwaway database; skipped otherwise.
+ * Requires TEST_DATABASE_URL (in .env or the shell) pointing at a THROWAWAY database; skipped otherwise.
  */
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
@@ -12,7 +12,7 @@ import * as schema from "@/db/schema";
 import { CURRENCIES } from "@/lib/money";
 import { LedgerError, listAccountsWithBalances, postDeposit, postTransfer, type RateProvider } from "@/server/ledger";
 
-const url = process.env.DATABASE_URL;
+const url = process.env.DATABASE_URL || undefined;
 const client = url ? postgres(url, { max: 10, onnotice: () => {} }) : null;
 const db = client ? drizzle(client, { schema }) : (null as never);
 

@@ -4,7 +4,7 @@ A small multi-currency bank account: EUR, USD and BAM accounts, transfers with F
 
 Built to show how money should be handled in a web app, not just moved around.
 
-> **Live demo:** _coming soon_ · login `demo@ledger.local` / `demo1234`
+> Runs locally in a few minutes, see [Run locally](#run-locally). Login `demo@ledger.local` / `demo1234`.
 
 ## What this demonstrates
 
@@ -63,24 +63,33 @@ EUR sums to 0, USD sums to 0. Same-currency transfers need only two entries. A S
 
 ## Run locally
 
-```bash
-cp .env.example .env            # set SESSION_SECRET (openssl rand -base64 48)
-docker compose up --build       # app on http://localhost:3000
-```
+**Option A: without Docker** (recommended for trying it out)
 
-Without Docker for the app:
+Requirements: [Node.js](https://nodejs.org) 22.9+ and [PostgreSQL](https://www.postgresql.org/download/) 16 or newer running locally.
 
 ```bash
-docker compose up -d db
+git clone https://github.com/bos1313/ledger.git
+cd ledger
+cp .env.example .env            # Windows: copy .env.example .env
+# edit .env: replace PASSWORD with your postgres password, set SESSION_SECRET (any 32+ chars)
 npm install
-npm run db:migrate && npm run db:seed
-npm run dev
+npm run db:setup                # creates the databases, runs migrations, seeds demo data
+npm run dev                     # http://localhost:3000
 ```
 
-Tests (integration tests need a throwaway database):
+**Option B: Docker Compose** (app + Postgres, as in production)
 
 ```bash
-DATABASE_URL=postgres://ledger:ledger@localhost:5432/ledger_test npm test
+cp .env.example .env            # set SESSION_SECRET
+docker compose up --build       # http://localhost:3000
+```
+
+Login: `demo@ledger.local` / `demo1234`.
+
+**Tests.** Integration tests use `TEST_DATABASE_URL` only (never `DATABASE_URL`), because they truncate every table:
+
+```bash
+npm test
 ```
 
 ## REST API
@@ -110,7 +119,6 @@ curl -X POST http://localhost:3000/api/v1/transfers \
 - [ ] Rate history chart (Frankfurter time series), optional Redis cache
 - [ ] Stripe test-mode deposits: Checkout/PaymentIntent, webhook with signature verification
 - [ ] Live balance updates over SSE when a deposit lands
-- [ ] Deploy to Hetzner (Docker Compose + Caddy for TLS)
 
 ## Project layout
 
