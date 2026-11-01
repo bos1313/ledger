@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ledger
+      POSTGRES_PASSWORD: ledger
+      POSTGRES_DB: ledger
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledger -d ledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-off: apply migrations and seed demo data, then exit.
+  migrate:
+    build:
+      context: .
+      target: builder
+    command: sh -c "npm run db:migrate && npm run db:seed"
+    environment:
+      DATABASE_URL: postgres://ledger:ledger@db:5432/ledger
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://ledger:ledger@db:5432/ledger
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      FX_API_URL: https://api.frankfurter.app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Optional (days 6–7): shared FX-rate cache. Start with `docker compose --profile cache up`.
+  redis:
+    image: redis:7-alpine
+    profiles: ["cache"]
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
