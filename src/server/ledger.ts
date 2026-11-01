@@ -264,6 +264,7 @@ export type EntryRow = {
   transferId: string;
   kind: "transfer" | "deposit";
   description: string | null;
+  externalRef: string | null;
   rate: string;
   transferAmountMinor: bigint;
   convertedMinor: bigint;
@@ -314,7 +315,7 @@ export async function listEntries(
   const rows = await db.execute<Record<string, string | Date | null>>(sql`
     ${base}
     select e.id::text, e.amount_minor::text, e.balance_after::text, e.currency, e.created_at,
-           t.id as transfer_id, t.kind, t.description, t.rate::text,
+           t.id as transfer_id, t.kind, t.description, t.external_ref, t.rate::text,
            t.amount_minor::text as transfer_amount, t.converted_minor::text,
            fa.name as from_name, fa.currency as from_currency,
            ta.name as to_name, ta.currency as to_currency
@@ -337,6 +338,7 @@ export async function listEntries(
       transferId: r.transfer_id as string,
       kind: r.kind as EntryRow["kind"],
       description: r.description as string | null,
+      externalRef: r.external_ref as string | null,
       rate: r.rate as string,
       transferAmountMinor: BigInt(r.transfer_amount as string),
       convertedMinor: BigInt(r.converted_minor as string),

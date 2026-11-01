@@ -38,14 +38,14 @@ export default async function DashboardPage({
       <section className="grid">
         {accounts.map((a) => (
           <Link key={a.id} href={`/dashboard/accounts/${a.id}` as Route} className="card account-card">
-            <p className="muted">{a.name}</p>
+            <p className="muted">{t.accountNames[a.currency]}</p>
             <p className="balance">{formatMoney(a.balanceMinor, a.currency, intl)}</p>
             <p className="muted small">{t.dashboard.transactions}</p>
           </Link>
         ))}
       </section>
 
-      <TransferForm accounts={accounts.map(({ id, name, currency }) => ({ id, name, currency }))} t={t.transfer} />
+      <TransferForm accounts={accounts.map(({ id, currency }) => ({ id, currency, name: t.accountNames[currency] }))} t={t.transfer} />
 
       <Suspense key={`${pair}-${days}`} fallback={<section className="card muted">{t.rates.loading}</section>}>
         <RatesSection pair={pair} days={days} />

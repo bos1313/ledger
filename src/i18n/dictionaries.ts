@@ -6,6 +6,8 @@
 const hr = {
   meta: { description: "Demo viševalutnog računa: dvojno knjigovodstvo, tečajevi i plaćanja" },
   common: { language: "Jezik", back: "← Računi" },
+  /** Display names per account currency (each user has one account per currency). */
+  accountNames: { EUR: "Tekući račun", USD: "Devizni račun", BAM: "Račun u BiH" },
   login: {
     email: "Email",
     password: "Lozinka",
@@ -51,6 +53,7 @@ const hr = {
     colAmount: "Iznos",
     colBalance: "Stanje",
     deposit: "Uplata",
+    openingBalance: "Početno stanje",
     transferTo: "Prijenos na: {name}",
     transferFrom: "Prijenos s: {name}",
     rate: "tečaj {rate}",
@@ -86,6 +89,7 @@ export type Dictionary = typeof hr;
 const en: Dictionary = {
   meta: { description: "Multi-currency account demo: double-entry bookkeeping, FX and payments" },
   common: { language: "Language", back: "← Accounts" },
+  accountNames: { EUR: "Current account", USD: "Foreign currency account", BAM: "BiH account" },
   login: {
     email: "Email",
     password: "Password",
@@ -131,6 +135,7 @@ const en: Dictionary = {
     colAmount: "Amount",
     colBalance: "Balance",
     deposit: "Deposit",
+    openingBalance: "Opening balance",
     transferTo: "Transfer to: {name}",
     transferFrom: "Transfer from: {name}",
     rate: "rate {rate}",

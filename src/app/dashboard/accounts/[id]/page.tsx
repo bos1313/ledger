@@ -23,12 +23,17 @@ const Filters = z.object({
   kind: z.enum(["transfer", "deposit"]).optional().catch(undefined),
 });
 
-function describe(r: EntryRow, t: Dictionary["account"], intl: string) {
-  if (r.kind === "deposit") return { title: r.description ?? t.deposit, detail: null };
+function describe(r: EntryRow, dict: Dictionary, intl: string) {
+  const t = dict.account;
+  if (r.kind === "deposit") {
+    // Seeded opening balances are recognised by their reference, so the label is translated.
+    const title = r.externalRef?.startsWith("seed:opening:") ? t.openingBalance : (r.description ?? t.deposit);
+    return { title, detail: null };
+  }
   const title =
     r.amountMinor < 0n
-      ? fmt(t.transferTo, { name: r.toAccountName })
-      : fmt(t.transferFrom, { name: r.fromAccountName ?? "" });
+      ? fmt(t.transferTo, { name: dict.accountNames[r.toCurrency] })
+      : fmt(t.transferFrom, { name: r.fromCurrency ? dict.accountNames[r.fromCurrency] : "" });
   // Displayed rate is rounded to 6 decimals; the stored rate keeps full precision.
   const fx =
     r.fromCurrency && r.fromCurrency !== r.toCurrency
@@ -88,7 +93,7 @@ export default async function AccountPage({
 
       <header className="row between">
         <div>
-          <p className="muted">{account.name} · {account.currency}</p>
+          <p className="muted">{dict.accountNames[account.currency]} · {account.currency}</p>
           <p className="balance">{formatMoney(account.balanceMinor, account.currency, intl)}</p>
         </div>
         <a className="button secondary" href={csvHref} download>
@@ -133,7 +138,7 @@ export default async function AccountPage({
             </thead>
             <tbody>
               {rows.map((r) => {
-                const { title, detail } = describe(r, t, intl);
+                const { title, detail } = describe(r, dict, intl);
                 return (
                   <tr key={r.id.toString()}>
                     <td className="nowrap muted">{dateTime.format(r.createdAt)}</td>
