@@ -76,6 +76,17 @@ async function balanceOf(tx: Tx | Db, accountId: string): Promise<bigint> {
   return BigInt(row.balance);
 }
 
+/** Postgres channel for "this user's balances changed" (payload: user id). */
+export const LEDGER_CHANNEL = "ledger_events";
+
+/**
+ * NOTIFY inside the posting transaction: Postgres delivers it only on COMMIT,
+ * so listeners never hear about a transfer that was rolled back.
+ */
+async function notifyBalanceChanged(tx: Tx, userId: string) {
+  await tx.execute(sql`select pg_notify(${LEDGER_CHANNEL}, ${userId})`);
+}
+
 function assertBalanced(entries: NewEntry[]) {
   const sums = new Map<string, bigint>();
   for (const e of entries) sums.set(e.currency, (sums.get(e.currency) ?? 0n) + e.amountMinor);
@@ -171,6 +182,7 @@ export async function postTransfer(
           ];
     assertBalanced(entries);
     await tx.insert(ledgerEntries).values(entries.map((e) => ({ ...e, transferId: result.transfer.id })));
+    await notifyBalanceChanged(tx, input.userId);
     return result;
   });
 }
@@ -215,6 +227,7 @@ export async function postDeposit(
     ];
     assertBalanced(entries);
     await tx.insert(ledgerEntries).values(entries.map((e) => ({ ...e, transferId: result.transfer.id })));
+    await notifyBalanceChanged(tx, input.userId);
     return result;
   });
 }

@@ -9,6 +9,7 @@ import { formatRate } from "@/lib/fx";
 import { formatMoney } from "@/lib/money";
 import { requireSession } from "@/server/auth";
 import { APP_TIME_ZONE, listAccountsWithBalances, listEntries, type EntryRow } from "@/server/ledger";
+import { LiveRefresh } from "../../live-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,11 @@ function describe(r: EntryRow, dict: Dictionary, intl: string) {
   const t = dict.account;
   if (r.kind === "deposit") {
     // Seeded opening balances are recognised by their reference, so the label is translated.
-    const title = r.externalRef?.startsWith("seed:opening:") ? t.openingBalance : (r.description ?? t.deposit);
+    const title = r.externalRef?.startsWith("seed:opening:")
+      ? t.openingBalance
+      : r.externalRef?.startsWith("pi_") // Stripe PaymentIntent id
+        ? t.cardDeposit
+        : (r.description ?? t.deposit);
     return { title, detail: null };
   }
   const title =
@@ -90,6 +95,7 @@ export default async function AccountPage({
   return (
     <main className="container stack">
       <Link href="/dashboard" className="back">{dict.common.back}</Link>
+      <LiveRefresh />
 
       <header className="row between">
         <div>

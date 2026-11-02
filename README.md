@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/bos1313/ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/bos1313/ledger/actions/workflows/ci.yml)
 
-A small multi-currency bank account: EUR, USD and BAM accounts, transfers with FX conversion at the daily ECB rate, a double-entry ledger, and (coming next) Stripe test-mode deposits with live balance updates.
+A small multi-currency bank account: EUR, USD and BAM accounts, transfers with FX conversion at the daily ECB rate, a double-entry ledger, and Stripe test-mode card deposits with live balance updates.
 
 Built to show how money should be handled in a web app, not just moved around.
 
@@ -20,19 +20,30 @@ Built to show how money should be handled in a web app, not just moved around.
 - **Banker's rounding** (half-to-even) when converting, with fixed-point rates (10 decimals) in integer math.
 - **BAM is pegged** to the euro (1 EUR = 1.95583 BAM by the currency board) and isn't published by the ECB, so it is derived, not fetched. Only EUR→USD comes from the API; every other pair (and its history) is a cross rate computed in fixed-point.
 
+**Payments (Stripe, test mode)**
+- Card deposits through **Stripe Checkout**, created by a Server Action (the form's idempotency key is passed to Stripe, so a double submit reuses the same Checkout Session).
+- Money is booked **only by the webhook**, never by the redirect back from Stripe: `POST /api/webhooks/stripe` verifies the `Stripe-Signature` HMAC over the raw body, then posts `external:EUR −X / user EUR +X`.
+- **Idempotent on the PaymentIntent id** (unique index on `transfers.external_ref`): duplicate or concurrent deliveries, and `completed` + `async_payment_succeeded` for the same payment, book once. Tested with 5 concurrent deliveries.
+- Status codes are chosen for Stripe's retry logic: `400` bad signature, `200` booked/already booked/deliberately ignored (wrong currency, unknown account), `500` only for transient failures so Stripe retries.
+
+**Live balance updates (SSE)**
+- Every posting runs `pg_notify('ledger_events', user_id)` **inside its transaction**, so Postgres delivers it only on commit, never for a rolled-back transfer.
+- `GET /api/v1/events` is a Server-Sent Events stream; one `LISTEN` connection per server process fans out to that user's open tabs. Works across instances (webhook on one, browser stream on another).
+- The client calls `router.refresh()` on `event: balance`, so Server Components re-read balances from the DB. The "payment processing" banner after Checkout turns into "deposit posted" by itself.
+
 **Next.js App Router**
 - Server Components read straight from the database (`/dashboard`, `/dashboard/accounts/[id]`).
 - Running balance per entry via a SQL window function (`SUM() OVER (ORDER BY …)`), computed over the full history so it stays correct on every page and filter.
 - Streaming with `<Suspense>`: balances render immediately, the FX card streams in; if the FX API is down only that card degrades.
 - **Croatian and English UI.** Typed dictionaries (a test checks both languages have the same keys and placeholders); language from a cookie, else the browser's `Accept-Language`; switched by a Server Action. Money, dates and rates use `Intl` for the chosen locale (`1.234,56 €` / `€1,234.56`).
-- Server Actions for login and transfers, with the idempotency key generated per form render.
+- Server Actions for login, transfers and starting a Stripe Checkout, with the idempotency key generated per form render.
 - Route Handlers as a versioned REST API (`/api/v1/*`).
 - `proxy.ts` (Next.js 16's new name for `middleware.ts`) as the auth gate; every data access re-checks the session too.
 
 **Infrastructure**
 - PostgreSQL + Drizzle ORM with checked-in SQL migrations.
 - Docker Compose: app, Postgres, a one-off migrate/seed job, optional Redis.
-- Vitest: unit tests for money math, integration tests for the ledger against real Postgres.
+- Vitest: unit tests for money math, integration tests for the ledger and the Stripe webhook against real Postgres (events signed locally, no network).
 - GitHub Actions: typecheck, migration drift check, tests, build, Docker image.
 
 ## Architecture
@@ -46,6 +57,30 @@ flowchart LR
   N -->|cached 1h| F[Frankfurter<br/>ECB rates]
   N -. SSE .-> B
 ```
+
+### Card deposit flow
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant N as Next.js
+  participant S as Stripe
+  participant P as PostgreSQL
+  B->>N: Server Action depositAction (amount, account, idempotency key)
+  N->>S: create Checkout Session (metadata: user, account)
+  N-->>B: redirect to Stripe Checkout
+  B->>S: pays with test card
+  S-->>B: redirect back to /dashboard ("processing", nothing booked yet)
+  S->>N: POST /api/webhooks/stripe (signed)
+  N->>N: verify Stripe-Signature over the raw body
+  N->>P: BEGIN, lock account, insert transfer (unique PaymentIntent id),<br/>external:EUR -X / user EUR +X, pg_notify, COMMIT
+  N-->>S: 200 (also for a duplicate delivery)
+  P-->>N: NOTIFY ledger_events (only after COMMIT)
+  N-->>B: SSE event: balance
+  B->>N: router.refresh(), balances re-read from the DB
+```
+
+The redirect back from Stripe never books money: anyone can open that URL. Only the signed webhook does.
 
 ## The ledger model
 
@@ -92,6 +127,15 @@ docker compose up --build       # http://localhost:3000
 
 Login: `demo@ledger.local` / `demo1234`.
 
+**Stripe deposits (optional).** Put your test-mode `STRIPE_SECRET_KEY` in `.env`, then forward webhooks with the [Stripe CLI](https://docs.stripe.com/stripe-cli):
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+# copy the printed whsec_... into STRIPE_WEBHOOK_SECRET and restart `npm run dev`
+```
+
+Pay with test card `4242 4242 4242 4242`, any future date and CVC. The balance updates without reloading.
+
 **Tests.** Integration tests use `TEST_DATABASE_URL` only (never `DATABASE_URL`), because they truncate every table:
 
 ```bash
@@ -109,6 +153,8 @@ All endpoints need the session cookie (log in via `/login`). Errors look like `{
 | POST | `/api/v1/transfers` | Header `Idempotency-Key`; body `{from_account_id, to_account_id, amount_minor, description?}` |
 | GET  | `/api/v1/rates?from=EUR&to=USD` | ECB rate via Frankfurter, cached 1h |
 | GET  | `/api/v1/rates/history?from=EUR&to=USD&days=90` | One point per ECB working day (7–730 days), cached 6h |
+| GET  | `/api/v1/events` | Server-Sent Events: `event: balance` when one of your balances changes |
+| POST | `/api/webhooks/stripe` | Public, authenticated by `Stripe-Signature` |
 | GET  | `/api/health` | Public; checks DB |
 
 ```bash
@@ -124,8 +170,8 @@ curl -X POST http://localhost:3000/api/v1/transfers \
 - [x] Transfers with FX conversion and idempotency, REST API, CSV export
 - [x] Transactions page: date/type filters, pagination, running balance, CSV export
 - [x] Rate board and rate history chart (Frankfurter time series, cached in the Next.js data cache)
-- [ ] Stripe test-mode deposits: Checkout/PaymentIntent, webhook with signature verification
-- [ ] Live balance updates over SSE when a deposit lands
+- [x] Stripe test-mode deposits: Checkout, webhook with signature verification, idempotent on PaymentIntent id
+- [x] Live balance updates over SSE (Postgres `LISTEN/NOTIFY`) when a deposit lands
 
 ## Project layout
 
@@ -134,7 +180,7 @@ src/
   app/            pages, Server Actions, Route Handlers (/api/v1/*)
   db/             Drizzle schema, migrate + seed scripts
   lib/            money math, rates, session (no DB access)
-  server/         ledger service (transfers, deposits, balances), API helpers
+  server/         ledger service (transfers, deposits, balances), Stripe webhook, SSE fan-out, API helpers
   proxy.ts        auth gate
 drizzle/          generated SQL migrations
 tests/            Vitest unit + integration tests
